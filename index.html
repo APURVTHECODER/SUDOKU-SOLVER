@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Sudoku Solver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto&display=swap" rel="stylesheet"> 
+  <style>
+    html {
+      background-color:#e6e9ef;
+      color:#4c4f69;
+      font-family: 'Roboto', sans-serif;
+    }
+    h1 {
+      margin-bottom:0;
+    }
+    body {
+      display: flex;
+      flex-direction:column;
+      align-items:center;
+    }
+    table {
+      border-collapse: collapse;
+      border: 2px solid #000
+    }
+    tbody>:nth-child(3n){
+      border-bottom:2px solid #000
+    }
+    tr>:nth-child(3n){
+      border-right:2px solid #000
+    }
+    table td {
+      width: 7.5vmin;
+      height:7.5vmin;
+      text-align: center;
+      border: 1px solid rgba(124, 127, 147, 0.2);
+      background-color:#dce0e8;
+    }
+    .grid_elem {
+      width: 100%;
+      height: 100%;
+      font-size: 6vmin;
+      text-align: center;
+      border: none;
+      padding: 0;
+      margin: 0;
+      background-color:#eff1f5;
+      color:#4c4f69;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    button {
+      width:10vmin;
+      height:5vmin;
+      margin-top: 10px;
+    }
+    #digitRow {
+      display: none;
+      position: absolute;
+      height: 6.5vmin;
+      background-color: white;
+      gap: 5px;
+      justify-content: space-around;
+      align-items: center;
+      padding: 0.5vmin;
+      box-shadow: -3px 3px 15px rgba(0,0,0,0.4);
+      border: 2px solid rgba(124, 127, 147, 0.8);
+    }
+    .digit {
+      display: inline-block;
+      font-size: 6vmin;
+      cursor: pointer;
+      width: 6vmin;
+      height: 6vmin;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .digit:hover {
+      background-color: rgba(220, 138, 120, 0.2);
+    }
+  </style>
+  <script>
+        //const digitRow = document.getElementById("digitRow");
+    //const digits = document.getElementsByClassName("digit");
+    //console.log(digits)
+    function toggleDigitRow(event) {
+      const input = event.target;
+      const digitRow = document.getElementById("digitRow");
+      const isDigitRowVisible = digitRow.style.display === "flex";
+      
+    const digits = document.getElementsByClassName("digit");
+    for (let i = 0; i < digits.length; i++) {
+      digits[i].onclick=function(event) {
+        input.textContent = digits[i].textContent;
+        hideDigitRow();
+      }};
+      hideDigitRow();
+      
+      if (!isDigitRowVisible) {
+        digitRow.style.display = "flex";
+        positionDigitRow(digitRow, input);
+      }
+    }
+    function convertRemToPixels(rem) {    
+    return rem * parseFloat(getComputedStyle(document.documentElement).fontSize);
+    }
+    function hideDigitRow() {
+      const digitRow = document.getElementById("digitRow");
+      digitRow.style.display = "none";
+    }
+
+    function positionDigitRow(digitRow, input) {
+      const inputRect = input.getBoundingClientRect();
+      const inputCenterX = inputRect.left + inputRect.width / 2;
+      const digitRowWidth = digitRow.offsetWidth;
+
+      let digitRowLeft = inputCenterX - digitRowWidth / 2;
+      const viewportWidth = window.innerWidth;
+
+      // Check if digitRow overflows the viewport on the left side
+      if (digitRowLeft < 0) {
+        digitRowLeft = 0; // Align to the left edge of the viewport
+      }
+
+      // Check if digitRow overflows the viewport on the right side
+      if (digitRowLeft + digitRowWidth > viewportWidth) {
+        digitRowLeft = viewportWidth - digitRowWidth; // Align to the right edge of the viewport
+      }
+
+      // Keep the vertical positioning
+      if (input.parentNode.parentNode == input.parentNode.parentNode.parentNode.firstElementChild) {
+        digitRow.style.top = inputRect.bottom + "px";
+      } else {
+        digitRow.style.top = inputRect.top + window.scrollY - digitRow.offsetHeight - convertRemToPixels(0.2) + "px";
+      }
+
+      digitRow.style.left = digitRowLeft + window.scrollX + "px";
+    }
+
+    function solveSudoku() {
+      const grid = [];
+
+      // Loop through each row of the table
+      const rows = document.querySelectorAll('tbody tr');
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td div');
+        const rowData = Array.from(cells).map(cell => parseInt(cell.textContent) || 0);
+        grid.push(rowData);
+      });
+
+      // Solve the Sudoku grid
+      const solvedGrid = solveSudokuGrid(grid);
+
+      if (!solvedGrid) {
+        displayErrorMessage('Invalid or unsolvable grid');
+        return;
+      }
+
+      // Display the solved grid in the console
+      console.log(solvedGrid);
+
+      // Update the input fields with the solved grid values
+      const inputFields = document.querySelectorAll('tbody tr td div');
+      inputFields.forEach((input, index) => {
+        const row = Math.floor(index / 9);
+        const col = index % 9;
+        input.textContent = solvedGrid[row][col] !== 0 ? solvedGrid[row][col] : '';
+      });
+
+      clearErrorMessage();
+    }
+
+    function handleCellClick(input) {
+      if (!input.value) {
+        input.value = 1;
+      } else {
+        const currentValue = parseInt(input.value);
+        const newValue = currentValue === 9 ? 1 : currentValue + 1;
+        input.value = newValue;
+      }
+
+      clearErrorMessage();
+    }
+
+    function solveSudokuGrid(grid) {
+      if (!isValidGrid(grid)) {
+        return false;
+      }
+
+      if (isSolved(grid)) {
+        return grid;
+      }
+
+      const emptyCell = findEmptyCell(grid);
+      const row = emptyCell[0];
+      const col = emptyCell[1];
+
+      for (let num = 1; num <= 9; num++) {
+        if (isValidMove(grid, row, col, num)) {
+          grid[row][col] = num;
+
+          if (solveSudokuGrid(grid)) {
+            return grid;
+          }
+
+          grid[row][col] = 0;
+        }
+      }
+
+      return false;
+    }
+
+    function isValidGrid(grid) {
+      // Check if the grid is a 9x9 array
+      if (grid.length !== 9) {
+        return false;
+      }
+
+      for (let i = 0; i < 9; i++) {
+        if (grid[i].length !== 9) {
+          return false;
+        }
+      }
+
+      // Check if each cell contains a number from 1 to 9 or 0 for empty cells
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          const num = grid[row][col];
+          if (num < 0 || num > 9) {
+            return false;
+          }
+        }
+      }
+
+      // Check if there are duplicate numbers in rows, columns, and 3x3 squares
+      for (let i = 0; i < 9; i++) {
+        if (!isValidSet(grid[i]) || !isValidSet(getColumn(grid, i)) || !isValidSet(getSquare(grid, i))) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    function isValidSet(arr) {
+      const set = new Set();
+
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i] !== 0) {
+          if (set.has(arr[i])) {
+            return false;
+          }
+          set.add(arr[i]);
+        }
+      }
+
+      return true;
+    }
+
+    function getColumn(grid, col) {
+      const column = [];
+
+      for (let i = 0; i < grid.length; i++) {
+        column.push(grid[i][col]);
+      }
+
+      return column;
+    }
+
+    function getSquare(grid, square) {
+      const startRow = Math.floor(square / 3) * 3;
+      const startCol = (square % 3) * 3;
+      const squareValues = [];
+
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          squareValues.push(grid[startRow + i][startCol + j]);
+        }
+      }
+
+      return squareValues;
+    }
+
+    function isSolved(grid) {
+      // Check if all cells are filled
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (grid[row][col] === 0) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
+
+    function findEmptyCell(grid) {
+      // Find the first empty cell (cell with value 0)
+      for (let row = 0; row < 9; row++) {
+        for (let col = 0; col < 9; col++) {
+          if (grid[row][col] === 0) {
+            return [row, col];
+          }
+        }
+      }
+
+      return [-1, -1];
+    }
+
+    function isValidMove(grid, row, col, num) {
+      // Check if the number exists in the same row
+      for (let c = 0; c < 9; c++) {
+        if (grid[row][c] === num) {
+          return false;
+        }
+      }
+
+      // Check if the number exists in the same column
+      for (let r = 0; r < 9; r++) {
+        if (grid[r][col] === num) {
+          return false;
+        }
+      }
+
+      // Check if the number exists in the same 3x3 box
+      const boxStartRow = Math.floor(row / 3) * 3;
+      const boxStartCol = Math.floor(col / 3) * 3;
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          if (grid[boxStartRow + r][boxStartCol + c] === num) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    }
+
+    function displayErrorMessage(message) {
+      const errorElement = document.getElementById('error-message');
+      errorElement.textContent = message;
+      errorElement.style.display = 'block';
+    }
+
+    function clearErrorMessage() {
+      const errorElement = document.getElementById('error-message');
+      errorElement.textContent = '';
+      errorElement.style.display = 'none';
+    }
+    function clearGrid(){
+      const inputFields = document.querySelectorAll('tbody tr td div');
+      inputFields.forEach((input, index) => {
+        input.textContent = '';
+      });
+    }
+  </script>
+</head>
+<body>
+  <h1>Sudoku Solver</h1>
+  <h2>Please enter the numbers for the Sudoku grid by clicking on the grid cells</h2>
+  <div id="digitRow">
+      <span class="digit">1</span>
+      <span class="digit">2</span>
+      <span class="digit">3</span>
+      <span class="digit">4</span>
+      <span class="digit">5</span>
+      <span class="digit">6</span>
+      <span class="digit">7</span>
+      <span class="digit">8</span>
+      <span class="digit">9</span>
+  </div>
+  <table>
+    <tbody>
+      <!-- Create a 9x9 grid of input fields -->
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <tr>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+        <td><div class="grid_elem" onclick="toggleDigitRow(event)"></div></td>
+      </tr>
+      <!-- Repeat the above row 8 more times -->
+      <!-- ... -->
+    </tbody>
+  </table>
+  <div class="buttons">
+    <button onclick="solveSudoku()">Solve</button>
+    <button onclick="clearGrid()">Clear</button>
+  </div>
+  <div id="error-message" class="error"></div>
+</body>
+</html>
