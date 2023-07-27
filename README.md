@@ -1,5 +1,6 @@
 # SUDOKU-SOLVER
-
+<img align="right" alt="Coding" width="400" src="image/sudoku1.png">
+<img align="right" alt="Coding" width="400" src="image/sudoku2.png">
 The provided HTML code represents a basic Sudoku Solver web application. The solver uses a backtracking algorithm to find a valid solution to the given Sudoku puzzle. Before delving into the backtracking algorithm, let's understand the structure of the HTML and how it interacts with the JavaScript code.
 
 HTML Structure:
